@@ -10,3 +10,6 @@ __pycache__/
 mlflow.db
 mlruns/
 *.csv
+logs/
+models/xgb_fraud_model_final.pkl
+models/feature_columns_final.pkl

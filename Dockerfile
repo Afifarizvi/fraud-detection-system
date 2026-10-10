@@ -14,10 +14,7 @@ ENV PATH=/root/.local/bin:$PATH
 COPY src/ ./src/
 COPY models/ ./models/
 
-ENV MODEL_PATH=models/xgb_fraud_model_final.pkl
-ENV FEATURE_COLUMNS_PATH=models/feature_columns_final.pkl
-ENV DECISION_THRESHOLD=0.8
-ENV MODEL_VERSION=v1-tuned
+ENV MODEL_VERSION=v2
 
 EXPOSE 8000
 
