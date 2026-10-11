@@ -14,7 +14,7 @@ ENV PATH=/root/.local/bin:$PATH
 COPY src/ ./src/
 COPY models/ ./models/
 
-ENV MODEL_VERSION=v2
+ENV MODEL_VERSION=v3
 
 EXPOSE 8000
 

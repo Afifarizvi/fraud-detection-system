@@ -4,9 +4,9 @@ import json
 import joblib
 import pandas as pd
 
-pipe = joblib.load("models/pipeline_v2.pkl")
-model = joblib.load("models/xgb_fraud_model_v2.pkl")
-with open("models/metrics_v2.json") as f:
+pipe = joblib.load("models/pipeline_v3.pkl")
+model = joblib.load("models/xgb_fraud_model_v3.pkl")
+with open("models/metrics_v3.json") as f:
     threshold = json.load(f)["threshold"]
 
 raw = pd.read_csv("data/processed/raw_test_sample.csv")

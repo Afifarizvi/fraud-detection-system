@@ -1,7 +1,9 @@
 import pandas as pd
 from scipy.stats import ks_2samp
 
-REFERENCE_PATH = "models/reference_distribution.csv"
+from src.utils.config import MODEL_VERSION
+
+REFERENCE_PATH = f"models/reference_{MODEL_VERSION}.csv.gz"
 
 
 def compute_drift_report(recent_df: pd.DataFrame, features: list, min_samples: int = 30):

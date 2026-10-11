@@ -13,10 +13,31 @@ class FeaturePipeline:
     so training and serving always compute features the same way.
     """
 
-    def __init__(self, missing_threshold=0.85, rare_device_min=100):
+    # Class-level default keeps pipelines pickled before this option existed loadable.
+    entity_features = False
+
+    def __init__(self, missing_threshold=0.85, rare_device_min=100, entity_features=False):
         self.missing_threshold = missing_threshold
         self.rare_device_min = rare_device_min
+        self.entity_features = entity_features
         self.feature_columns = None
+
+    @staticmethod
+    def _col(d, name):
+        return d[name] if name in d.columns else pd.Series(np.nan, index=d.index)
+
+    def _uid(self, d):
+        """Pseudo-customer id: card1 + addr1 + estimated account start day."""
+        day = np.floor(pd.to_numeric(self._col(d, "TransactionDT"), errors="coerce") / 86400)
+        d1n = day - pd.to_numeric(self._col(d, "D1"), errors="coerce")
+        card1 = pd.to_numeric(self._col(d, "card1"), errors="coerce")
+        addr1 = pd.to_numeric(self._col(d, "addr1"), errors="coerce")
+        ok = card1.notna() & addr1.notna() & d1n.notna()
+        uid = pd.Series(np.nan, index=d.index, dtype=object)
+        uid[ok] = (card1[ok].astype(int).astype(str) + "_"
+                   + addr1[ok].astype(int).astype(str) + "_"
+                   + d1n[ok].astype(int).astype(str))
+        return uid
 
     def _clean_cats(self, d, fitting=False):
         cats = pd.DataFrame(index=d.index)
@@ -50,13 +71,22 @@ class FeaturePipeline:
         self.count_fallback = float(self.card1_count.median())
         self.mean_fallback = float(self.card1_mean.median())
 
+        if self.entity_features:
+            stats = (pd.DataFrame({"uid": self._uid(raw), "amt": raw["TransactionAmt"]})
+                     .dropna(subset=["uid"])
+                     .groupby("uid")["amt"].agg(["count", "sum"]))
+            self.uid_count = stats["count"]
+            self.uid_sum = stats["sum"]
+
         self.feature_columns = list(self.transform(raw.head(5)).columns)
         return self
 
-    def transform(self, raw: pd.DataFrame) -> pd.DataFrame:
+    def transform(self, raw: pd.DataFrame, in_sample: bool = False) -> pd.DataFrame:
+        """in_sample=True only for the rows the pipeline was fitted on, so a
+        training row does not count itself in its own customer history."""
         d = raw.drop(columns=[c for c in (TARGET, ID_COL) if c in raw.columns])
-        email_p = d["P_emaildomain"] if "P_emaildomain" in d.columns else pd.Series(np.nan, index=d.index)
-        email_r = d["R_emaildomain"] if "R_emaildomain" in d.columns else pd.Series(np.nan, index=d.index)
+        email_p = self._col(d, "P_emaildomain")
+        email_r = self._col(d, "R_emaildomain")
 
         base = d.reindex(columns=self.input_cols)
         num = base[self.num_cols].apply(pd.to_numeric, errors="coerce").fillna(-999)
@@ -78,6 +108,20 @@ class FeaturePipeline:
 
         both = email_p.notna() & email_r.notna()
         out["email_match"] = np.where(both, (email_p == email_r).astype(int), -1)
+
+        if self.entity_features:
+            uid = self._uid(d)
+            has = uid.notna()
+            n = uid.map(self.uid_count).fillna(0.0)
+            s = uid.map(self.uid_sum).fillna(0.0)
+            if in_sample:
+                n = n - has.astype(float)
+                s = s - np.where(has, amt, 0.0)
+            known = n > 0
+            mean_other = (s / n.where(known, 1.0)).where(known, -999.0)
+            out["uid_count_other"] = n
+            out["uid_amt_mean_other"] = mean_other
+            out["amt_to_uid_mean"] = (amt / mean_other).where(known, -999.0)
 
         if self.feature_columns:
             out = out[self.feature_columns]
