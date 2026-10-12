@@ -87,9 +87,10 @@ def predict_batch(transactions: list[TransactionRequest], api_key: str = Depends
 def stats(api_key: str = Depends(verify_api_key)):
     df = load_predictions()
     if df.empty:
-        return {"total_predictions": 0}
+        return {"total_predictions": 0, "threshold": predictor.threshold}
     return {
         "total_predictions": int(len(df)),
+        "threshold": predictor.threshold,
         "fraud_flagged": int(df["is_fraud"].sum()),
         "fraud_rate": round(float(df["is_fraud"].mean()), 4),
         "avg_latency_ms": round(float(df["latency_ms"].mean()), 2),

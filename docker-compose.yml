@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    image: fraud-detection-api:v3
+    ports:
+      - "8000:8000"
+    environment:
+      API_KEY: ${API_KEY:?Set API_KEY in the .env file}
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 40s
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      DASHBOARD_API_URL: http://api:8000
+      DASHBOARD_API_KEY: ${API_KEY:?Set API_KEY in the .env file}
+    volumes:
+      - ./data/processed:/app/data/processed:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
